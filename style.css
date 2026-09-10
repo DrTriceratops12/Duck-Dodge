@@ -49,3 +49,49 @@ canvas {
   font-size: 16px;
   color: #cfe9d6;
 }
+
+/* ---------- Phone & tablet controls ---------- */
+/* Hidden on laptops. The @media part at the bottom shows them on touch screens. */
+.touch-controls,
+.touch-hint {
+  display: none;
+}
+
+.touch-controls {
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.arrow-btn {
+  flex: 1;
+  height: 84px;
+  border: none;
+  border-radius: 18px;
+  background: #ffd94a;
+  box-shadow: 0 6px 0 #a26b00;
+  /* stop long-press menus, text selection and double-tap zoom */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.arrow-btn svg {
+  width: 44px;
+  height: 44px;
+  fill: #7a4f00;
+}
+
+/* while held down, the button sinks a little */
+.arrow-btn.pressed {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #a26b00;
+}
+
+/* Touch screens (phones and tablets): show the buttons instead of the keyboard hint */
+@media (hover: none) and (pointer: coarse) {
+  .touch-controls { display: flex; }
+  .touch-hint     { display: block; }
+  .keyboard-hint  { display: none; }
+}

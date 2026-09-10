@@ -16,7 +16,18 @@
 
     <canvas id="game" width="800" height="520"></canvas>
 
-    <p class="hint">Move with the arrow keys or A / D. Press Space to start or restart.</p>
+    <p class="hint keyboard-hint">Move with the arrow keys or A / D. Press Space to start or restart.</p>
+    <p class="hint touch-hint">Tap the game to start. Hold the arrow buttons to move.</p>
+
+    <!-- Arrow buttons for phones and tablets (style.css hides them on laptops) -->
+    <div class="touch-controls">
+      <button id="left-btn" class="arrow-btn" aria-label="Move left">
+        <svg viewBox="0 0 24 24"><polygon points="16,4 6,12 16,20" /></svg>
+      </button>
+      <button id="right-btn" class="arrow-btn" aria-label="Move right">
+        <svg viewBox="0 0 24 24"><polygon points="8,4 18,12 8,20" /></svg>
+      </button>
+    </div>
   </main>
 
   <script src="game.js"></script>

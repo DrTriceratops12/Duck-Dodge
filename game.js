@@ -48,6 +48,40 @@ document.addEventListener("keyup", (e) => {
   keys[e.key.toLowerCase()] = false;
 });
 
+// ---------- 3b. Touch buttons (phones and tablets) ----------
+// Same test style.css uses to decide whether to show the arrow buttons.
+const isTouchScreen = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+
+// Holding a button works exactly like holding down that arrow key.
+function holdButton(buttonId, keyName) {
+  const button = document.getElementById(buttonId);
+
+  const press = (e) => {
+    e.preventDefault();
+    keys[keyName] = true;
+    button.classList.add("pressed");
+  };
+  const release = () => {
+    keys[keyName] = false;
+    button.classList.remove("pressed");
+  };
+
+  button.addEventListener("pointerdown", press);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("pointerleave", release);
+}
+
+holdButton("left-btn", "arrowleft");
+holdButton("right-btn", "arrowright");
+
+// Phones have no Space bar, so tapping the game starts or restarts it.
+if (isTouchScreen) {
+  canvas.addEventListener("pointerdown", () => {
+    if (state !== "playing") startGame();
+  });
+}
+
 // ---------- 4. Starting / restarting ----------
 function startGame() {
   state = "playing";
@@ -157,8 +191,9 @@ function draw() {
   drawDuck();
   drawHUD();
 
-  if (state === "ready") drawOverlay("Duck Dodge", "Press Space to play");
-  if (state === "over") drawOverlay("Splat!", "Press Space to try again");
+  const startWord = isTouchScreen ? "Tap" : "Press Space";
+  if (state === "ready") drawOverlay("Duck Dodge", startWord + " to play");
+  if (state === "over") drawOverlay("Splat!", startWord + " to try again");
 }
 
 function drawBackground() {
