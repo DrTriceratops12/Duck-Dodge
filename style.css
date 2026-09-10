@@ -1,0 +1,51 @@
+/* Page styling. The game itself is drawn inside the canvas by game.js. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #123f2e;
+  /* soft light coming from the top, like sun over a pond */
+  background-image: radial-gradient(ellipse at 50% -10%, #2c7a57 0%, #123f2e 60%);
+  font-family: "Fredoka", "Trebuchet MS", sans-serif;
+  color: #f4ffe9;
+  padding: 20px;
+}
+
+.game-shell {
+  width: 100%;
+  max-width: 840px;
+  text-align: center;
+}
+
+h1 {
+  font-size: clamp(28px, 6vw, 46px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 0 0 14px;
+  color: #ffd94a;
+  text-shadow: 0 3px 0 #a26b00;
+}
+
+canvas {
+  width: 100%;
+  height: auto;          /* keeps the 800x520 shape on small screens */
+  display: block;
+  border: 6px solid #ffd94a;
+  border-radius: 18px;
+  background: #8fd3ff;   /* shows for a split second before the sky draws */
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+}
+
+.hint {
+  margin: 14px 0 0;
+  font-size: 16px;
+  color: #cfe9d6;
+}
