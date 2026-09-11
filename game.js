@@ -33,13 +33,15 @@ let clouds = [
 ];
 
 // ---------- 2b. Difficulty ----------
-// rockGap   = seconds between rocks at the start (smaller = more rocks)
-// rockSpeed = how fast rocks fall at the start (1 = normal speed)
+// name/label = what the title screen shows (rename them here!)
+// rockGap    = seconds between rocks at the start (smaller = more rocks)
+// rockSpeed  = how fast rocks fall at the start (1 = normal speed)
 const LEVELS = {
-  easy:   { rockGap: 0.8,  rockSpeed: 0.8 },   // "Duckling"
-  normal: { rockGap: 0.55, rockSpeed: 1.0 },   // "Quacker"
-  hard:   { rockGap: 0.4,  rockSpeed: 1.2 }    // "Rock Storm"
+  easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8 },
+  normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0 },
+  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2 }
 };
+const LEVEL_ORDER = ["easy", "normal", "hard"];   // left to right on the title screen
 
 // Every 10 seconds, every level gets a little harder.
 const HARDER_EVERY = 10;     // seconds between each step up
@@ -64,14 +66,24 @@ function currentRockSpeed() {
 const keys = {};
 
 document.addEventListener("keydown", (e) => {
-  keys[e.key.toLowerCase()] = true;
+  const key = e.key.toLowerCase();
+  keys[key] = true;
 
-  // Space starts a new game (and stops the page from scrolling)
+  // Space plays from the title screen, or goes back to it after a Splat
+  // (and stops the page from scrolling)
   if (e.code === "Space") {
     e.preventDefault();
-    if (state !== "playing") startGame();
+    if (state === "ready") startGame();
+    else if (state === "over") goToTitle();
   }
-  if (["arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
+  if (["arrowleft", "arrowright"].includes(key)) e.preventDefault();
+
+  // On the title screen, left and right choose the level.
+  // (e.repeat = the key is being held down, so only count the first press)
+  if (state === "ready" && !e.repeat) {
+    if (key === "arrowleft" || key === "a") changeLevel(-1);
+    if (key === "arrowright" || key === "d") changeLevel(1);
+  }
 });
 
 document.addEventListener("keyup", (e) => {
@@ -105,27 +117,40 @@ function holdButton(buttonId, keyName) {
 holdButton("left-btn", "arrowleft");
 holdButton("right-btn", "arrowright");
 
-// Phones have no Space bar, so tapping the game starts or restarts it.
-if (isTouchScreen) {
-  canvas.addEventListener("pointerdown", () => {
-    if (state !== "playing") startGame();
-  });
+// Tapping (or clicking) the game: on the title screen, a level box starts
+// that level. On the Splat screen, it goes back to the title screen.
+canvas.addEventListener("pointerdown", (e) => {
+  if (state === "over") {
+    goToTitle();
+    return;
+  }
+  if (state !== "ready") return;
+
+  // The canvas is shrunk to fit the screen, so turn the tap position
+  // back into game pixels (0-800 across, 0-520 down).
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left - canvas.clientLeft) * (W / canvas.clientWidth);
+  const y = (e.clientY - rect.top - canvas.clientTop) * (H / canvas.clientHeight);
+
+  for (const box of levelBoxes()) {
+    if (x > box.x && x < box.x + box.w && y > box.y && y < box.y + box.h) {
+      pickLevel(box.level);
+      startGame();
+    }
+  }
+});
+
+// ---------- 3c. Picking a level ----------
+function pickLevel(newLevel) {
+  level = newLevel;
+  highScore = loadHighScore(level);   // each level has its own Best
 }
 
-// ---------- 3c. Difficulty buttons ----------
-const levelButtons = document.querySelectorAll(".level-btn");
-
-for (const button of levelButtons) {
-  button.addEventListener("click", () => {
-    level = button.dataset.level;
-    highScore = loadHighScore(level);   // each level has its own Best
-    for (const b of levelButtons) b.classList.toggle("selected", b === button);
-  });
-}
-
-// No switching levels in the middle of a round.
-function lockLevelButtons(locked) {
-  for (const b of levelButtons) b.disabled = locked;
+// step is -1 (one to the left) or 1 (one to the right)
+function changeLevel(step) {
+  let i = LEVEL_ORDER.indexOf(level) + step;
+  i = Math.max(0, Math.min(LEVEL_ORDER.length - 1, i));   // stop at the ends
+  pickLevel(LEVEL_ORDER[i]);
 }
 
 // ---------- 4. Starting / restarting ----------
@@ -136,12 +161,18 @@ function startGame() {
   rocks = [];
   spawnTimer = 0.8;
   duck.x = W / 2;
-  lockLevelButtons(true);
+}
+
+// Clear the old round away and show the title screen (level picker) again.
+function goToTitle() {
+  state = "ready";
+  score = 0;
+  rocks = [];
+  duck.x = W / 2;
 }
 
 function gameOver() {
   state = "over";
-  lockLevelButtons(false);
   if (Math.floor(score) > highScore) {
     highScore = Math.floor(score);
     saveHighScore(level, highScore);
@@ -247,8 +278,8 @@ function draw() {
   drawHUD();
 
   const startWord = isTouchScreen ? "Tap" : "Press Space";
-  if (state === "ready") drawOverlay("Duck Dodge", startWord + " to play");
-  if (state === "over") drawOverlay("Splat!", startWord + " to try again");
+  if (state === "ready") drawTitleScreen();
+  if (state === "over") drawOverlay("Splat!", startWord + " to pick a level");
 }
 
 function drawBackground() {
@@ -398,6 +429,68 @@ function drawOverlay(title, subtitle) {
     ctx.font = "500 22px Fredoka, Trebuchet MS, sans-serif";
     ctx.fillText("You scored " + Math.floor(score), W / 2, H / 2 + 66);
   }
+}
+
+// ---------- 7b. Title screen with the level picker ----------
+function drawTitleScreen() {
+  ctx.fillStyle = "rgba(8, 30, 45, 0.55)";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffd94a";
+  ctx.font = "700 62px Fredoka, Trebuchet MS, sans-serif";
+  ctx.fillText("Duck Dodge", W / 2, 140);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "500 26px Fredoka, Trebuchet MS, sans-serif";
+  ctx.fillText("Pick a level", W / 2, 188);
+
+  for (const box of levelBoxes()) drawLevelBox(box);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "500 24px Fredoka, Trebuchet MS, sans-serif";
+  const help = isTouchScreen ? "Tap a level to play" : "← → to choose, Space to play";
+  ctx.fillText(help, W / 2, 372);
+}
+
+// Where the three level boxes sit on the title screen (drawing AND tapping use this).
+function levelBoxes() {
+  const w = 220, h = 100, gap = 20;
+  const left = (W - (w * 3 + gap * 2)) / 2;   // centers the row
+  return LEVEL_ORDER.map((name, i) => ({ level: name, x: left + i * (w + gap), y: 220, w: w, h: h }));
+}
+
+function drawLevelBox(box) {
+  const picked = box.level === level;
+  const info = LEVELS[box.level];
+
+  roundedRect(box.x, box.y, box.w, box.h, 16);
+  if (picked) {                  // the chosen level is filled in yellow
+    ctx.fillStyle = "#ffd94a";
+    ctx.fill();
+  }
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#ffd94a";
+  ctx.stroke();
+
+  ctx.fillStyle = picked ? "#7a4f00" : "#ffd94a";
+  ctx.font = "700 34px Fredoka, Trebuchet MS, sans-serif";
+  ctx.fillText(info.name, box.x + box.w / 2, box.y + 50);
+
+  ctx.fillStyle = picked ? "#7a4f00" : "#ffffff";
+  ctx.font = "500 22px Fredoka, Trebuchet MS, sans-serif";
+  ctx.fillText(info.label, box.x + box.w / 2, box.y + 80);
+}
+
+// A rectangle with rounded corners (r = how round).
+function roundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 // ---------- 8. The game loop ----------

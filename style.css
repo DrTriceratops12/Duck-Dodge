@@ -50,53 +50,6 @@ canvas {
   color: #cfe9d6;
 }
 
-/* ---------- Difficulty buttons ---------- */
-.level-picker {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.level-btn {
-  flex: 1;
-  padding: 10px 4px;
-  border: 3px solid #ffd94a;
-  border-radius: 14px;
-  background: transparent;
-  color: #ffd94a;
-  font-family: inherit;
-  font-size: clamp(15px, 4vw, 20px);
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;   /* no double-tap zoom on phones */
-}
-
-.level-btn small {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #cfe9d6;
-}
-
-/* the level you picked is filled in yellow */
-.level-btn.selected {
-  background: #ffd94a;
-  color: #7a4f00;
-}
-
-.level-btn.selected small {
-  color: #7a4f00;
-}
-
-/* during a round you can't switch, so the other levels fade out */
-.level-btn:disabled {
-  cursor: default;
-}
-
-.level-btn:disabled:not(.selected) {
-  opacity: 0.4;
-}
-
 /* ---------- Phone & tablet controls ---------- */
 /* Hidden on laptops. The @media part at the bottom shows them on touch screens. */
 .touch-controls,
