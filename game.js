@@ -12,7 +12,9 @@ const GROUND_Y = H - 70;   // where the grass starts
 // ---------- 2. Game variables ----------
 let state = "ready";       // "ready", "playing", or "over"
 let score = 0;
-let highScore = loadHighScore();
+let timeAlive = 0;         // seconds survived this round
+let level = "normal";      // "easy", "normal", or "hard" (see LEVELS below)
+let highScore = loadHighScore(level);
 
 const duck = {
   x: W / 2,
@@ -29,6 +31,34 @@ let clouds = [
   { x: 430, y: 140, size: 0.7, speed: 18 },
   { x: 660, y: 70,  size: 1.2, speed: 8 }
 ];
+
+// ---------- 2b. Difficulty ----------
+// rockGap   = seconds between rocks at the start (smaller = more rocks)
+// rockSpeed = how fast rocks fall at the start (1 = normal speed)
+const LEVELS = {
+  easy:   { rockGap: 0.8,  rockSpeed: 0.8 },   // "Duckling"
+  normal: { rockGap: 0.55, rockSpeed: 1.0 },   // "Quacker"
+  hard:   { rockGap: 0.4,  rockSpeed: 1.2 }    // "Rock Storm"
+};
+
+// Every 10 seconds, every level gets a little harder.
+const HARDER_EVERY = 10;     // seconds between each step up
+const MORE_ROCKS   = 0.88;   // each step, the gap between rocks shrinks to 88%
+const FASTER_ROCKS = 0.08;   // each step, rocks fall 8% faster
+const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
+
+function stepsSoFar() {
+  return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
+}
+
+function currentRockGap() {
+  const gap = LEVELS[level].rockGap * MORE_ROCKS ** stepsSoFar();
+  return Math.max(SMALLEST_GAP, gap);
+}
+
+function currentRockSpeed() {
+  return LEVELS[level].rockSpeed * (1 + FASTER_ROCKS * stepsSoFar());
+}
 
 // ---------- 3. Keyboard ----------
 const keys = {};
@@ -82,35 +112,59 @@ if (isTouchScreen) {
   });
 }
 
+// ---------- 3c. Difficulty buttons ----------
+const levelButtons = document.querySelectorAll(".level-btn");
+
+for (const button of levelButtons) {
+  button.addEventListener("click", () => {
+    level = button.dataset.level;
+    highScore = loadHighScore(level);   // each level has its own Best
+    for (const b of levelButtons) b.classList.toggle("selected", b === button);
+  });
+}
+
+// No switching levels in the middle of a round.
+function lockLevelButtons(locked) {
+  for (const b of levelButtons) b.disabled = locked;
+}
+
 // ---------- 4. Starting / restarting ----------
 function startGame() {
   state = "playing";
   score = 0;
+  timeAlive = 0;
   rocks = [];
   spawnTimer = 0.8;
   duck.x = W / 2;
+  lockLevelButtons(true);
 }
 
 function gameOver() {
   state = "over";
+  lockLevelButtons(false);
   if (Math.floor(score) > highScore) {
     highScore = Math.floor(score);
-    saveHighScore(highScore);
+    saveHighScore(level, highScore);
   }
 }
 
-// ---------- 5. High score (saved in the browser) ----------
-function loadHighScore() {
+// ---------- 5. High score (saved in the browser, one per level) ----------
+function loadHighScore(level) {
   try {
-    return Number(localStorage.getItem("duckDodgeHighScore")) || 0;
+    let saved = localStorage.getItem("duckDodgeHighScore_" + level);
+    // Before levels existed there was one Best score. It becomes the Normal Best.
+    if (saved === null && level === "normal") {
+      saved = localStorage.getItem("duckDodgeHighScore");
+    }
+    return Number(saved) || 0;
   } catch (err) {
     return 0;   // some browsers block storage; the game still works
   }
 }
 
-function saveHighScore(value) {
+function saveHighScore(level, value) {
   try {
-    localStorage.setItem("duckDodgeHighScore", value);
+    localStorage.setItem("duckDodgeHighScore_" + level, value);
   } catch (err) {
     /* ignore */
   }
@@ -143,7 +197,7 @@ function update(dt) {
   spawnTimer -= dt;
   if (spawnTimer <= 0) {
     spawnRock();
-    spawnTimer = 0.55;     // a new rock every 0.55 seconds
+    spawnTimer = currentRockGap();   // gets shorter every 10 seconds
   }
 
   // --- move rocks and check for hits ---
@@ -160,6 +214,7 @@ function update(dt) {
   }
 
   // --- score goes up the longer you survive ---
+  timeAlive += dt;
   score += dt * 10;
 }
 
@@ -169,7 +224,7 @@ function spawnRock() {
     x: radius + Math.random() * (W - radius * 2),
     y: -radius,
     radius: radius,
-    speed: 190 + Math.random() * 120,
+    speed: (190 + Math.random() * 120) * currentRockSpeed(),
     spin: Math.random() * 6
   });
 }
