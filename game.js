@@ -39,9 +39,10 @@ let clouds = [
 const LEVELS = {
   easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8 },
   normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0 },
-  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2 }
+  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2 },
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45 }
 };
-const LEVEL_ORDER = ["easy", "normal", "hard"];   // left to right on the title screen
+const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
 // Every 10 seconds, every level gets a little harder.
 const HARDER_EVERY = 10;     // seconds between each step up
@@ -455,8 +456,9 @@ function drawTitleScreen() {
 
 // Where the three level boxes sit on the title screen (drawing AND tapping use this).
 function levelBoxes() {
-  const w = 220, h = 100, gap = 20;
-  const left = (W - (w * 3 + gap * 2)) / 2;   // centers the row
+  const w = 176, h = 100, gap = 14;
+  const count = LEVEL_ORDER.length;
+  const left = (W - (w * count + gap * (count - 1))) / 2;   // centers the row
   return LEVEL_ORDER.map((name, i) => ({ level: name, x: left + i * (w + gap), y: 220, w: w, h: h }));
 }
 
@@ -474,11 +476,11 @@ function drawLevelBox(box) {
   ctx.stroke();
 
   ctx.fillStyle = picked ? "#7a4f00" : "#ffd94a";
-  ctx.font = "700 34px Fredoka, Trebuchet MS, sans-serif";
+  ctx.font = "700 28px Fredoka, Trebuchet MS, sans-serif";
   ctx.fillText(info.name, box.x + box.w / 2, box.y + 50);
 
   ctx.fillStyle = picked ? "#7a4f00" : "#ffffff";
-  ctx.font = "500 22px Fredoka, Trebuchet MS, sans-serif";
+  ctx.font = "500 20px Fredoka, Trebuchet MS, sans-serif";
   ctx.fillText(info.label, box.x + box.w / 2, box.y + 80);
 }
 
