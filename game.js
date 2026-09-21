@@ -43,7 +43,7 @@ const LEVELS = {
   easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  meteorEvery: 0 },
   normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  meteorEvery: 0 },
   hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  meteorEvery: 8 },
-  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.25, rockSpeed: 1.45, meteorEvery: 5 }
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.26, rockSpeed: 1.45, meteorEvery: 5.5 }
 };
 const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
@@ -307,13 +307,15 @@ function spawnRock() {
   });
 }
 
-// A meteor starts just outside the top right corner and aims at a random
-// spot on the ground, so it doesn't always land in the same place.
+// A meteor starts just outside the top left OR top right corner and aims at
+// a random spot on the ground, so it doesn't always land in the same place.
 // It has a radius and spin like a rock, so drawRock() and hitsDuck() work on it.
 function spawnMeteor() {
-  const startX = W + 30;
+  const fromLeft = Math.random() < 0.5;
+  const startX = fromLeft ? -30 : W + 30;
   const startY = -30;
-  const landX = 80 + Math.random() * 540;                       // where it will hit the ground
+  const across = 80 + Math.random() * 540;                  // how far from its own corner's side it lands
+  const landX = fromLeft ? W - across : across;             // where it will hit the ground
   const secondsToLand = (GROUND_Y - startY) / METEOR_FALL_SPEED;
   meteors.push({
     x: startX,
