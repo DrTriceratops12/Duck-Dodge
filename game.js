@@ -26,6 +26,8 @@ const duck = {
 
 let rocks = [];            // all the falling objects live in this list
 let spawnTimer = 0;        // counts down to the next rock
+let meteors = [];          // meteors flying across the sky (Hard and Insane)
+let meteorTimer = 0;       // counts down to the next meteor
 let clouds = [
   { x: 120, y: 90,  size: 1.0, speed: 12 },
   { x: 430, y: 140, size: 0.7, speed: 18 },
@@ -36,12 +38,12 @@ let clouds = [
 // name/label = what the title screen shows (rename them here!)
 // rockGap    = seconds between rocks at the start (smaller = more rocks)
 // rockSpeed  = how fast rocks fall at the start (1 = normal speed)
-// splitChance = how often a rock is a cracked one that splits into 3 (0 = never, 0.25 = 1 in 4)
+// meteorEvery = seconds between meteors (0 = no meteors on this level)
 const LEVELS = {
-  easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  splitChance: 0 },
-  normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  splitChance: 0 },
-  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  splitChance: 0.15 },
-  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45, splitChance: 0.25 }
+  easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  meteorEvery: 0 },
+  normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  meteorEvery: 0 },
+  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  meteorEvery: 8 },
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45, meteorEvery: 5 }
 };
 const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
@@ -51,10 +53,11 @@ const MORE_ROCKS   = 0.88;   // each step, the gap between rocks shrinks to 88%
 const FASTER_ROCKS = 0.08;   // each step, rocks fall 8% faster
 const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
 
-// Splitting rocks (Hard and Insane only - see splitChance above).
-const SPLIT_HEIGHT  = 180;   // how far down (in pixels) a cracked rock breaks apart
-const PIECE_SPEEDUP = 2;     // the 3 pieces fall this many times faster than the big rock
-const PIECE_SPREAD  = 160;   // how fast the left and right pieces fly sideways (pixels per second)
+// Meteors (Hard and Insane only - see meteorEvery above).
+// A meteor flies diagonally across the sky and drops rocks behind it.
+const METEOR_SPEED_X    = 240;    // how fast it flies sideways (pixels per second)
+const METEOR_SPEED_Y    = 60;     // how fast it sinks while it flies
+const METEOR_DROP_EVERY = 0.35;   // seconds between the rocks it drops
 
 function stepsSoFar() {
   return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
@@ -167,6 +170,8 @@ function startGame() {
   timeAlive = 0;
   rocks = [];
   spawnTimer = 0.8;
+  meteors = [];
+  meteorTimer = LEVELS[level].meteorEvery;   // first meteor comes after one wait
   duck.x = W / 2;
 }
 
@@ -175,6 +180,7 @@ function goToTitle() {
   state = "ready";
   score = 0;
   rocks = [];
+  meteors = [];
   duck.x = W / 2;
 }
 
@@ -238,19 +244,36 @@ function update(dt) {
     spawnTimer = currentRockGap();   // gets shorter every 10 seconds
   }
 
+  // --- meteors (Hard and Insane) ---
+  const meteorEvery = LEVELS[level].meteorEvery;
+  if (meteorEvery > 0) {
+    meteorTimer -= dt;
+    if (meteorTimer <= 0) {
+      spawnMeteor();
+      meteorTimer = meteorEvery;
+    }
+  }
+
+  // The meteor itself flies too high to hit the duck. The rocks it drops can!
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    m.x += m.vx * dt;
+    m.y += METEOR_SPEED_Y * dt;
+
+    m.dropTimer -= dt;
+    if (m.dropTimer <= 0 && m.x > 0 && m.x < W) {   // only drop while it's on screen
+      dropRock(m.x, m.y);
+      m.dropTimer = METEOR_DROP_EVERY;
+    }
+
+    if (m.x < -60 || m.x > W + 60) meteors.splice(i, 1);   // flown off the side
+  }
+
   // --- move rocks and check for hits ---
   for (let i = rocks.length - 1; i >= 0; i--) {
     const r = rocks[i];
     r.y += r.speed * dt;
-    r.x += r.sideways * dt;   // only the split pieces move sideways
     r.spin += dt * 2;
-
-    // a cracked rock that's fallen far enough breaks into 3 fast pieces
-    if (r.splits && r.y >= SPLIT_HEIGHT) {
-      splitRock(r);
-      rocks.splice(i, 1);
-      continue;
-    }
 
     if (hitsDuck(r)) {
       gameOver();
@@ -265,32 +288,37 @@ function update(dt) {
 }
 
 function spawnRock() {
-  const splits = Math.random() < LEVELS[level].splitChance;   // is this a cracked one?
-  const radius = splits ? 30 : 14 + Math.random() * 12;       // cracked rocks are bigger
+  const radius = 14 + Math.random() * 12;
   rocks.push({
     x: radius + Math.random() * (W - radius * 2),
     y: -radius,
     radius: radius,
     speed: (190 + Math.random() * 120) * currentRockSpeed(),
-    spin: Math.random() * 6,
-    sideways: 0,             // pixels per second left (-) or right (+)
-    splits: splits
+    spin: Math.random() * 6
   });
 }
 
-// Break a cracked rock into 3 small, fast pieces: left, straight down, and right.
-function splitRock(r) {
-  for (const sideways of [-PIECE_SPREAD, 0, PIECE_SPREAD]) {
-    rocks.push({
-      x: r.x,
-      y: r.y,
-      radius: 12,
-      speed: r.speed * PIECE_SPEEDUP,
-      spin: r.spin,
-      sideways: sideways,
-      splits: false
-    });
-  }
+// A meteor starts just off the left or right side, high in the sky.
+function spawnMeteor() {
+  const fromLeft = Math.random() < 0.5;
+  meteors.push({
+    x: fromLeft ? -40 : W + 40,
+    y: 40 + Math.random() * 60,
+    vx: fromLeft ? METEOR_SPEED_X : -METEOR_SPEED_X,
+    dropTimer: 0
+  });
+}
+
+// A normal rock, dropped from wherever the meteor is right now.
+function dropRock(x, y) {
+  const radius = 12 + Math.random() * 6;
+  rocks.push({
+    x: x,
+    y: y,
+    radius: radius,
+    speed: (190 + Math.random() * 120) * currentRockSpeed(),
+    spin: Math.random() * 6
+  });
 }
 
 // Circle vs circle collision. The 0.75 makes the duck's hitbox a little
@@ -307,6 +335,7 @@ function draw() {
   drawBackground();
 
   for (const r of rocks) drawRock(r);
+  for (const m of meteors) drawMeteor(m);
   drawDuck();
   drawHUD();
 
@@ -427,20 +456,36 @@ function drawRock(r) {
   ctx.arc(-r.radius * 0.25, -r.radius * 0.3, r.radius * 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // cracks, so you can tell this rock is going to split
-  if (r.splits) {
-    ctx.strokeStyle = "#3b332b";
-    ctx.lineWidth = 2.5;
+  ctx.restore();
+}
+
+function drawMeteor(m) {
+  const back = m.vx > 0 ? -1 : 1;   // the tail points back the way it came
+
+  // fiery tail: circles that get smaller and fainter the farther back they are
+  for (let i = 5; i >= 1; i--) {
+    ctx.fillStyle = "rgba(255, " + (120 + i * 15) + ", 40, " + (0.5 - i * 0.08) + ")";
     ctx.beginPath();
-    ctx.moveTo(-r.radius * 0.2, -r.radius * 0.9);
-    ctx.lineTo(0, -r.radius * 0.2);
-    ctx.lineTo(-r.radius * 0.35, r.radius * 0.3);
-    ctx.moveTo(0, -r.radius * 0.2);
-    ctx.lineTo(r.radius * 0.55, r.radius * 0.1);
-    ctx.stroke();
+    ctx.arc(m.x + back * i * 14, m.y - i * 3.5, 16 - i * 2, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  ctx.restore();
+  // the glowing rock
+  ctx.fillStyle = "#d63a1a";
+  ctx.beginPath();
+  ctx.arc(m.x, m.y, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ff8c2e";
+  ctx.beginPath();
+  ctx.arc(m.x, m.y, 13, 0, Math.PI * 2);
+  ctx.fill();
+
+  // hot yellow spot at the front
+  ctx.fillStyle = "#ffd94a";
+  ctx.beginPath();
+  ctx.arc(m.x - back * 4, m.y - 3, 6, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawHUD() {
