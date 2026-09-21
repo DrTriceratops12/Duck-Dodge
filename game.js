@@ -36,11 +36,12 @@ let clouds = [
 // name/label = what the title screen shows (rename them here!)
 // rockGap    = seconds between rocks at the start (smaller = more rocks)
 // rockSpeed  = how fast rocks fall at the start (1 = normal speed)
+// splitChance = how often a rock is a cracked one that splits into 3 (0 = never, 0.25 = 1 in 4)
 const LEVELS = {
-  easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8 },
-  normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0 },
-  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2 },
-  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45 }
+  easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  splitChance: 0 },
+  normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  splitChance: 0 },
+  hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  splitChance: 0.15 },
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45, splitChance: 0.25 }
 };
 const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
@@ -49,6 +50,11 @@ const HARDER_EVERY = 10;     // seconds between each step up
 const MORE_ROCKS   = 0.88;   // each step, the gap between rocks shrinks to 88%
 const FASTER_ROCKS = 0.08;   // each step, rocks fall 8% faster
 const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
+
+// Splitting rocks (Hard and Insane only - see splitChance above).
+const SPLIT_HEIGHT  = 180;   // how far down (in pixels) a cracked rock breaks apart
+const PIECE_SPEEDUP = 2;     // the 3 pieces fall this many times faster than the big rock
+const PIECE_SPREAD  = 160;   // how fast the left and right pieces fly sideways (pixels per second)
 
 function stepsSoFar() {
   return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
@@ -236,7 +242,15 @@ function update(dt) {
   for (let i = rocks.length - 1; i >= 0; i--) {
     const r = rocks[i];
     r.y += r.speed * dt;
+    r.x += r.sideways * dt;   // only the split pieces move sideways
     r.spin += dt * 2;
+
+    // a cracked rock that's fallen far enough breaks into 3 fast pieces
+    if (r.splits && r.y >= SPLIT_HEIGHT) {
+      splitRock(r);
+      rocks.splice(i, 1);
+      continue;
+    }
 
     if (hitsDuck(r)) {
       gameOver();
@@ -251,14 +265,32 @@ function update(dt) {
 }
 
 function spawnRock() {
-  const radius = 14 + Math.random() * 12;
+  const splits = Math.random() < LEVELS[level].splitChance;   // is this a cracked one?
+  const radius = splits ? 30 : 14 + Math.random() * 12;       // cracked rocks are bigger
   rocks.push({
     x: radius + Math.random() * (W - radius * 2),
     y: -radius,
     radius: radius,
     speed: (190 + Math.random() * 120) * currentRockSpeed(),
-    spin: Math.random() * 6
+    spin: Math.random() * 6,
+    sideways: 0,             // pixels per second left (-) or right (+)
+    splits: splits
   });
+}
+
+// Break a cracked rock into 3 small, fast pieces: left, straight down, and right.
+function splitRock(r) {
+  for (const sideways of [-PIECE_SPREAD, 0, PIECE_SPREAD]) {
+    rocks.push({
+      x: r.x,
+      y: r.y,
+      radius: 12,
+      speed: r.speed * PIECE_SPEEDUP,
+      spin: r.spin,
+      sideways: sideways,
+      splits: false
+    });
+  }
 }
 
 // Circle vs circle collision. The 0.75 makes the duck's hitbox a little
@@ -394,6 +426,19 @@ function drawRock(r) {
   ctx.beginPath();
   ctx.arc(-r.radius * 0.25, -r.radius * 0.3, r.radius * 0.3, 0, Math.PI * 2);
   ctx.fill();
+
+  // cracks, so you can tell this rock is going to split
+  if (r.splits) {
+    ctx.strokeStyle = "#3b332b";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-r.radius * 0.2, -r.radius * 0.9);
+    ctx.lineTo(0, -r.radius * 0.2);
+    ctx.lineTo(-r.radius * 0.35, r.radius * 0.3);
+    ctx.moveTo(0, -r.radius * 0.2);
+    ctx.lineTo(r.radius * 0.55, r.radius * 0.1);
+    ctx.stroke();
+  }
 
   ctx.restore();
 }
