@@ -28,6 +28,7 @@ let rocks = [];            // all the falling objects live in this list
 let spawnTimer = 0;        // counts down to the next rock
 let meteors = [];          // meteors flying across the sky (Hard and Insane)
 let meteorTimer = 0;       // counts down to the next meteor
+let dustClouds = [];       // little dust puffs where meteors crash
 let clouds = [
   { x: 120, y: 90,  size: 1.0, speed: 12 },
   { x: 430, y: 140, size: 0.7, speed: 18 },
@@ -59,6 +60,7 @@ const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
 const METEOR_FALL_SPEED = 150;   // how fast it comes down (pixels per second)
 const METEOR_DROP_EVERY = 0.8;   // seconds between the rocks it drops
 const METEOR_DROP_UNTIL = 180;   // it stops dropping rocks once it's this low, so they can be dodged
+const DUST_LIFE         = 0.6;   // seconds the dust puff lasts after a meteor crashes
 
 function stepsSoFar() {
   return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
@@ -172,6 +174,7 @@ function startGame() {
   rocks = [];
   spawnTimer = 0.8;
   meteors = [];
+  dustClouds = [];
   meteorTimer = LEVELS[level].meteorEvery;   // first meteor comes after one wait
   duck.x = W / 2;
 }
@@ -182,6 +185,7 @@ function goToTitle() {
   score = 0;
   rocks = [];
   meteors = [];
+  dustClouds = [];
   duck.x = W / 2;
 }
 
@@ -274,8 +278,16 @@ function update(dt) {
       m.dropTimer = METEOR_DROP_EVERY;
     }
 
-    if (m.y >= GROUND_Y) meteors.splice(i, 1);                 // crashed into the ground
-    else if (m.x < -60 || m.x > W + 60) meteors.splice(i, 1);  // flown off the side
+    if (m.y >= GROUND_Y) {                                     // crashed into the ground
+      kickUpDust(m.x);
+      meteors.splice(i, 1);
+    } else if (m.x < -60 || m.x > W + 60) meteors.splice(i, 1);  // flown off the side
+  }
+
+  // --- dust puffs fade away ---
+  for (let i = dustClouds.length - 1; i >= 0; i--) {
+    dustClouds[i].age += dt;
+    if (dustClouds[i].age > DUST_LIFE) dustClouds.splice(i, 1);
   }
 
   // --- move rocks and check for hits ---
@@ -328,6 +340,11 @@ function spawnMeteor() {
   });
 }
 
+// A little puff of dust where a meteor hits the ground. age counts up to DUST_LIFE.
+function kickUpDust(x) {
+  dustClouds.push({ x: x, age: 0 });
+}
+
 // A rock dropped from wherever the meteor is right now.
 // It falls at normal speed (like Quacker), no matter the level or how long you've survived.
 function dropRock(x, y) {
@@ -356,6 +373,7 @@ function draw() {
 
   for (const r of rocks) drawRock(r);
   for (const m of meteors) drawMeteor(m);
+  for (const d of dustClouds) drawDust(d);
   drawDuck();
   drawHUD();
 
@@ -500,6 +518,22 @@ function drawMeteor(m) {
 
   // the rock itself, drawn exactly like every other rock
   drawRock(m);
+}
+
+// A small dust cloud: 5 soft puffs that spread out, rise a little, and fade.
+function drawDust(d) {
+  const t = d.age / DUST_LIFE;                    // 0 = just landed, 1 = all gone
+  ctx.globalAlpha = 0.75 * (1 - t);
+  ctx.fillStyle = "#c8b48c";                      // sandy dust color
+  for (const offset of [-18, -9, 0, 9, 18]) {
+    const x = d.x + offset * (0.6 + 0.6 * t);      // puffs spread outward
+    const y = GROUND_Y - 4 - t * 8 - (offset === 0 ? 4 : 0);   // and float up a bit
+    const size = 5 + t * 5 + (offset === 0 ? 2 : 0);            // and get bigger
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawHUD() {
