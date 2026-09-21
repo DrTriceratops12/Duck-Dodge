@@ -43,7 +43,7 @@ const LEVELS = {
   easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  meteorEvery: 0 },
   normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  meteorEvery: 0 },
   hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  meteorEvery: 8 },
-  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.45, meteorEvery: 5 }
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.6,  meteorEvery: 5 }
 };
 const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
@@ -54,10 +54,12 @@ const FASTER_ROCKS = 0.08;   // each step, rocks fall 8% faster
 const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
 
 // Meteors (Hard and Insane only - see meteorEvery above).
-// A meteor flies diagonally across the sky and drops rocks behind it.
-const METEOR_SPEED_X    = 240;    // how fast it flies sideways (pixels per second)
-const METEOR_SPEED_Y    = 60;     // how fast it sinks while it flies
-const METEOR_DROP_EVERY = 0.35;   // seconds between the rocks it drops
+// A meteor is a burning rock that flies in diagonally, drops a few rocks,
+// and crashes into the ground.
+const METEOR_SPEED_X    = 200;   // how fast it flies sideways (pixels per second)
+const METEOR_SPEED_Y    = 110;   // how fast it comes down (plus a random bit, so it lands in different spots)
+const METEOR_DROP_EVERY = 0.8;   // seconds between the rocks it drops
+const METEOR_DROP_UNTIL = 180;   // it stops dropping rocks once it's this low, so they can be dodged
 
 function stepsSoFar() {
   return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
@@ -254,19 +256,27 @@ function update(dt) {
     }
   }
 
-  // The meteor itself flies too high to hit the duck. The rocks it drops can!
   for (let i = meteors.length - 1; i >= 0; i--) {
     const m = meteors[i];
     m.x += m.vx * dt;
-    m.y += METEOR_SPEED_Y * dt;
+    m.y += m.vy * dt;
+    m.spin += dt * 2;
 
+    // the meteor is a rock too, so it can squash the duck
+    if (hitsDuck(m)) {
+      gameOver();
+      return;
+    }
+
+    // drop a rock now and then, but only while it's on screen and still high up
     m.dropTimer -= dt;
-    if (m.dropTimer <= 0 && m.x > 0 && m.x < W) {   // only drop while it's on screen
+    if (m.dropTimer <= 0 && m.x > 0 && m.x < W && m.y < METEOR_DROP_UNTIL) {
       dropRock(m.x, m.y);
       m.dropTimer = METEOR_DROP_EVERY;
     }
 
-    if (m.x < -60 || m.x > W + 60) meteors.splice(i, 1);   // flown off the side
+    if (m.y >= GROUND_Y) meteors.splice(i, 1);                 // crashed into the ground
+    else if (m.x < -60 || m.x > W + 60) meteors.splice(i, 1);  // flown off the side
   }
 
   // --- move rocks and check for hits ---
@@ -299,13 +309,17 @@ function spawnRock() {
 }
 
 // A meteor starts just off the left or right side, high in the sky.
+// It has a radius and spin like a rock, so drawRock() and hitsDuck() work on it.
 function spawnMeteor() {
   const fromLeft = Math.random() < 0.5;
   meteors.push({
     x: fromLeft ? -40 : W + 40,
-    y: 40 + Math.random() * 60,
+    y: 20 + Math.random() * 80,
+    radius: 20,
+    spin: Math.random() * 6,
     vx: fromLeft ? METEOR_SPEED_X : -METEOR_SPEED_X,
-    dropTimer: 0
+    vy: METEOR_SPEED_Y + Math.random() * 50,
+    dropTimer: METEOR_DROP_EVERY / 2   // first rock drops just after it flies in
   });
 }
 
@@ -459,33 +473,27 @@ function drawRock(r) {
   ctx.restore();
 }
 
+// A meteor = a normal rock with fire trailing behind it.
 function drawMeteor(m) {
-  const back = m.vx > 0 ? -1 : 1;   // the tail points back the way it came
+  // which way is "behind"? The opposite of the way it's moving.
+  const speed = Math.hypot(m.vx, m.vy);
+  const backX = -m.vx / speed;
+  const backY = -m.vy / speed;
 
-  // fiery tail: circles that get smaller and fainter the farther back they are
-  for (let i = 5; i >= 1; i--) {
-    ctx.fillStyle = "rgba(255, " + (120 + i * 15) + ", 40, " + (0.5 - i * 0.08) + ")";
+  // fire: yellow right behind the rock, turning red, smaller and fainter at the end
+  const flames = ["#ffd94a", "#ffb030", "#ff8c2e", "#f06a22", "#d63a1a"];
+  for (let i = flames.length - 1; i >= 0; i--) {
+    const distance = (i + 1) * 10;
+    ctx.globalAlpha = 0.9 - i * 0.15;
+    ctx.fillStyle = flames[i];
     ctx.beginPath();
-    ctx.arc(m.x + back * i * 14, m.y - i * 3.5, 16 - i * 2, 0, Math.PI * 2);
+    ctx.arc(m.x + backX * distance, m.y + backY * distance, m.radius * (1 - i * 0.15), 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.globalAlpha = 1;
 
-  // the glowing rock
-  ctx.fillStyle = "#d63a1a";
-  ctx.beginPath();
-  ctx.arc(m.x, m.y, 18, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#ff8c2e";
-  ctx.beginPath();
-  ctx.arc(m.x, m.y, 13, 0, Math.PI * 2);
-  ctx.fill();
-
-  // hot yellow spot at the front
-  ctx.fillStyle = "#ffd94a";
-  ctx.beginPath();
-  ctx.arc(m.x - back * 4, m.y - 3, 6, 0, Math.PI * 2);
-  ctx.fill();
+  // the rock itself, drawn exactly like every other rock
+  drawRock(m);
 }
 
 function drawHUD() {
