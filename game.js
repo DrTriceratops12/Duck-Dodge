@@ -43,7 +43,7 @@ const LEVELS = {
   easy:   { name: "Duckling",   label: "Easy",   rockGap: 0.8,  rockSpeed: 0.8,  meteorEvery: 0 },
   normal: { name: "Quacker",    label: "Normal", rockGap: 0.55, rockSpeed: 1.0,  meteorEvery: 0 },
   hard:   { name: "Rock Storm", label: "Hard",   rockGap: 0.4,  rockSpeed: 1.2,  meteorEvery: 8 },
-  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.28, rockSpeed: 1.6,  meteorEvery: 5 }
+  insane: { name: "Doomsday",   label: "Insane", rockGap: 0.25, rockSpeed: 1.45, meteorEvery: 5 }
 };
 const LEVEL_ORDER = ["easy", "normal", "hard", "insane"];   // left to right on the title screen
 
@@ -54,10 +54,9 @@ const FASTER_ROCKS = 0.08;   // each step, rocks fall 8% faster
 const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
 
 // Meteors (Hard and Insane only - see meteorEvery above).
-// A meteor is a burning rock that flies in diagonally, drops a few rocks,
-// and crashes into the ground.
-const METEOR_SPEED_X    = 200;   // how fast it flies sideways (pixels per second)
-const METEOR_SPEED_Y    = 110;   // how fast it comes down (plus a random bit, so it lands in different spots)
+// A meteor is a burning rock that flies in from the top right corner,
+// drops a few rocks, and crashes into the ground.
+const METEOR_FALL_SPEED = 150;   // how fast it comes down (pixels per second)
 const METEOR_DROP_EVERY = 0.8;   // seconds between the rocks it drops
 const METEOR_DROP_UNTIL = 180;   // it stops dropping rocks once it's this low, so they can be dodged
 
@@ -308,29 +307,34 @@ function spawnRock() {
   });
 }
 
-// A meteor starts just off the left or right side, high in the sky.
+// A meteor starts just outside the top right corner and aims at a random
+// spot on the ground, so it doesn't always land in the same place.
 // It has a radius and spin like a rock, so drawRock() and hitsDuck() work on it.
 function spawnMeteor() {
-  const fromLeft = Math.random() < 0.5;
+  const startX = W + 30;
+  const startY = -30;
+  const landX = 80 + Math.random() * 540;                       // where it will hit the ground
+  const secondsToLand = (GROUND_Y - startY) / METEOR_FALL_SPEED;
   meteors.push({
-    x: fromLeft ? -40 : W + 40,
-    y: 20 + Math.random() * 80,
+    x: startX,
+    y: startY,
     radius: 20,
     spin: Math.random() * 6,
-    vx: fromLeft ? METEOR_SPEED_X : -METEOR_SPEED_X,
-    vy: METEOR_SPEED_Y + Math.random() * 50,
-    dropTimer: METEOR_DROP_EVERY / 2   // first rock drops just after it flies in
+    vx: (landX - startX) / secondsToLand,   // negative = flying left
+    vy: METEOR_FALL_SPEED,
+    dropTimer: METEOR_DROP_EVERY / 2        // first rock drops just after it flies in
   });
 }
 
-// A normal rock, dropped from wherever the meteor is right now.
+// A rock dropped from wherever the meteor is right now.
+// It falls at normal speed (like Quacker), no matter the level or how long you've survived.
 function dropRock(x, y) {
   const radius = 12 + Math.random() * 6;
   rocks.push({
     x: x,
     y: y,
     radius: radius,
-    speed: (190 + Math.random() * 120) * currentRockSpeed(),
+    speed: 190 + Math.random() * 120,
     spin: Math.random() * 6
   });
 }
