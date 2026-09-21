@@ -60,7 +60,7 @@ const SMALLEST_GAP = 0.12;   // rocks never drop closer together than this
 const METEOR_FALL_SPEED = 150;   // how fast it comes down (pixels per second)
 const METEOR_DROP_EVERY = 0.8;   // seconds between the rocks it drops
 const METEOR_DROP_UNTIL = 180;   // it stops dropping rocks once it's this low, so they can be dodged
-const DUST_LIFE         = 0.6;   // seconds the dust puff lasts after a meteor crashes
+const DUST_LIFE         = 1.0;   // seconds the dust puff lasts after a meteor crashes
 
 function stepsSoFar() {
   return Math.floor(timeAlive / HARDER_EVERY);   // 0 for the first 10 s, then 1, 2, 3...
@@ -523,12 +523,12 @@ function drawMeteor(m) {
 // A small dust cloud: 5 soft puffs that spread out, rise a little, and fade.
 function drawDust(d) {
   const t = d.age / DUST_LIFE;                    // 0 = just landed, 1 = all gone
-  ctx.globalAlpha = 0.75 * (1 - t);
-  ctx.fillStyle = "#c8b48c";                      // sandy dust color
-  for (const offset of [-18, -9, 0, 9, 18]) {
-    const x = d.x + offset * (0.6 + 0.6 * t);      // puffs spread outward
+  ctx.globalAlpha = 0.9 * (1 - t * t);            // stays solid at first, then fades quickly
+  ctx.fillStyle = "#a58a5f";                      // brown dust: shows up on the pale sky AND the grass
+  for (const offset of [-20, -10, 0, 10, 20]) {
+    const x = d.x + offset * (0.6 + 0.5 * t);      // puffs spread outward
     const y = GROUND_Y - 4 - t * 8 - (offset === 0 ? 4 : 0);   // and float up a bit
-    const size = 5 + t * 5 + (offset === 0 ? 2 : 0);            // and get bigger
+    const size = 6 + t * 5 + (offset === 0 ? 2 : 0);            // and get bigger
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
     ctx.fill();
